@@ -100,19 +100,6 @@ void set(serial<l> *a_, uint8_t c, uint8_t d) {
 }
 
 template<int l>
-void set2(serial<l> *a_, uint8_t c) {
-    uint64_t a = 0;
-    uint64_t n = 0;
-    uint64_t ts = rdtsc();
-    do {
-        a = (a << 1) | ((1UL ^ a ^ (a >> c)) & 1UL);
-        (*a_)[n++] = a & 1UL;
-    } while (a && n < l);
-    uint64_t te = rdtsc();
-    printf("c=%2d %0.2f %12lu %2.3f \tc=%d n=%lu(%lX) %c\n", c, (double) n / (double) (1UL << c), te - ts, (double) (te - ts) / (double) n, c, n, n, n == 1UL << c ? '*' : ' ');
-}
-
-template<int l>
 void print(serial<l> &a_) {
     for (int i = 0; i < 100; ++i) {
         std::cout << static_cast<char>(a_[i] + '.') << " ";
@@ -129,20 +116,25 @@ void example1() {
     test<l>(&a);
 }
 
-//a = (a << 1) | ((1UL ^ a ^ (a >> c)) & 1UL);
 void example2() {
-    std::cout << "TEST!" << std::endl;
+    std::cout << "GENERATOR TEST 1!" << std::endl;
     serial<l> a;
-    set2<l>(&a, 4);
+    int shift_ = 4;
+    auto r = [shift_](uint64_t a) -> uint64_t {
+        return (a << 1) | ((1UL ^ a ^ (a >> shift_)) & 1UL);
+    };
+    set_<l>(&a, 0, r);
     print<l>(a);
 }
 
 //test start value
 void example3() {
-    std::cout << "TEST!" << std::endl;
+    std::cout << "GENERATOR TEST 2!" << std::endl;
     serial<l> a;
     int shift_ = 6;
-    auto r = [shift_](uint64_t a) -> uint64_t { return (a << 1) | ((1UL ^ (a >> shift_)) & 1UL); };
+    auto r = [shift_](uint64_t a) -> uint64_t {
+        return (a << 1) | ((1UL ^ (a >> shift_)) & 1UL);
+    };
     for (int i = 0; i < 1 << shift_; ++i) {
         set_<l>(&a, i, r);
         print<l>(a);
@@ -151,7 +143,7 @@ void example3() {
 
 int main() {
     example1();
-//    example2();
-//    example3();
+    example2();
+    example3();
     return 0;
 }
