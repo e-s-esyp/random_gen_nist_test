@@ -8,6 +8,17 @@ extern "C" {
 #include "include/stat_fncs.h"
 }
 
+
+static std::string bin(uint64_t n) {
+    static std::string s_;
+    s_.resize(64);
+    for (int i = 0; i < 64; ++i) {
+        s_[63 - i] = '0' + (n & 1UL);
+        n >>= 1;
+    }
+    return s_;
+}
+
 static inline uint64_t rdtsc(void) {
     uint32_t eax, edx;
     uint64_t tsc_val;
@@ -63,6 +74,15 @@ void test(serial<l> *a) {
     Serial(8, l);
 }
 
+template<int l, typename F>
+void set_(serial<l> *a_, uint64_t a, F f) {
+    uint64_t n = 0;
+    do {
+        a = f(a);
+        (*a_)[n++] = a & 1UL;
+    } while (a && n < l);
+}
+
 template<int l>
 void set(serial<l> *a_, uint8_t c, uint8_t d) {
     uint64_t a = 371;
@@ -72,19 +92,66 @@ void set(serial<l> *a_, uint8_t c, uint8_t d) {
     uint8_t c3 = c - 1;
     uint64_t ts = rdtsc();
     do {
-        a = ((a << 1) & c1) | ((1UL ^ a  ^ (a >> c3) ^ (a >> d)) & 1UL);
+        a = ((a << 1) & c1) | ((1UL ^ a ^ (a >> c3) ^ (a >> d)) & 1UL);
         (*a_)[n++] = a & 1UL;
     } while (a && n < l);
     uint64_t te = rdtsc();
     printf("c=%2d %0.2f %12lu %2.3f\tc1=%lu c2=%lu c3=%d n=%lu(%lX) %c\n", c, (double) n / (double) (1UL << c), te - ts, (double) (te - ts) / (double) n, c1, c2, c3, n, n, n == 1UL << c ? '*' : ' ');
 }
 
+template<int l>
+void set2(serial<l> *a_, uint8_t c) {
+    uint64_t a = 0;
+    uint64_t n = 0;
+    uint64_t ts = rdtsc();
+    do {
+        a = (a << 1) | ((1UL ^ a ^ (a >> c)) & 1UL);
+        (*a_)[n++] = a & 1UL;
+    } while (a && n < l);
+    uint64_t te = rdtsc();
+    printf("c=%2d %0.2f %12lu %2.3f \tc=%d n=%lu(%lX) %c\n", c, (double) n / (double) (1UL << c), te - ts, (double) (te - ts) / (double) n, c, n, n, n == 1UL << c ? '*' : ' ');
+}
+
+template<int l>
+void print(serial<l> &a_) {
+    for (int i = 0; i < 100; ++i) {
+        std::cout << static_cast<char>(a_[i] + '.') << " ";
+    }
+    std::cout << "\n";
+}
+
 #define l 2000000
 
-int main() {
+void example1() {
     std::cout << "NIST!" << std::endl;
     serial<l> a;
     set<l>(&a, 37, 8);//(37,8) (42,8)
     test<l>(&a);
+}
+
+//a = (a << 1) | ((1UL ^ a ^ (a >> c)) & 1UL);
+void example2() {
+    std::cout << "TEST!" << std::endl;
+    serial<l> a;
+    set2<l>(&a, 4);
+    print<l>(a);
+}
+
+//test start value
+void example3() {
+    std::cout << "TEST!" << std::endl;
+    serial<l> a;
+    int shift_ = 6;
+    auto r = [shift_](uint64_t a) -> uint64_t { return (a << 1) | ((1UL ^ (a >> shift_)) & 1UL); };
+    for (int i = 0; i < 1 << shift_; ++i) {
+        set_<l>(&a, i, r);
+        print<l>(a);
+    }
+}
+
+int main() {
+    example1();
+//    example2();
+//    example3();
     return 0;
 }
